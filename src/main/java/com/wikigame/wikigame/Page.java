@@ -15,7 +15,7 @@ public class Page {
 	private String url;
 	private String history = "";
 	
-	public Page(String selfUrl, Page parentNode) throws IOException {
+	public Page(String selfUrl, Page parentNode) {
 		url = selfUrl;
 		if(parentNode != null) {
 			history = parentNode.getHistory() + " --> " + selfUrl;
@@ -30,15 +30,16 @@ public class Page {
 			doc = Jsoup.connect(url).get();
 	        Elements elms = doc.select("#mw-content-text a[href^=\"/wiki/\"]");
 			for(Element elm : elms) {
-				if(elm.attr("href").startsWith("/wiki/") 
-						&& !elm.attr("href").startsWith("/wiki/File")
-						&& !elm.attr("href").startsWith("/wiki/Special")
-						&& !elm.attr("href").startsWith("/wiki/Help")) {
+				String href = elm.attr("href");
+				if(href.startsWith("/wiki/") 
+						&& !href.startsWith("/wiki/File")
+						&& !href.startsWith("/wiki/Special")
+						&& !href.startsWith("/wiki/Help")) {
 					childUrls.add(elm.attr("href"));
 				}
 			}
 		} catch (IOException e) {
-			e.printStackTrace();
+			throw new RuntimeException(e);
 		}
 	}
 		

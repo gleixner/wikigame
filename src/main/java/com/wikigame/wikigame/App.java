@@ -6,68 +6,64 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Queue;
 import java.util.Set;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.Executor;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
-import org.jsoup.Jsoup;
-import org.jsoup.nodes.Document;
-import org.jsoup.nodes.Element;
-import org.jsoup.select.Elements;
-
-
-
-/**
- * Hello world!
- *
- */
-public class App 
-{
-    public static void main( String[] args ) throws IOException
-    {
-//        System.out.println( "Hello World!" );
-//        Document doc = Jsoup.connect("https://en.wikipedia.org/wiki/Kevin_Bacon").get();
-//        Elements elms = doc.select("#mw-content-text a[href^=\"/wiki/\"]");
-//        System.out.println(elms.first());
-//        String title = doc.title();
-//        System.out.println(title);
-    	
-//    	String start = "https://en.wikipedia.org/wiki/Fenestrelle_Fort";
-    	String start = "https://en.wikipedia.org/wiki/Phalonidia_hapalobursa";
+public class App  {
+	
+	private static BlockingQueue<Runnable> qu = new LinkedBlockingQueue<>();
+	private static ThreadPoolExecutor executor = new ThreadPoolExecutor(4, 10, 100, TimeUnit.MILLISECONDS, qu);
+	private static Set<String> visitedUrls = ConcurrentHashMap.newKeySet();
+	private static AtomicInteger addedTasks = new AtomicInteger(0);
+	private static AtomicInteger executedTasks = new AtomicInteger(0);
+	private static AtomicInteger completedTasks = new AtomicInteger(0);
+	private static long startTime;
+	
+	
+    public static void main( String[] args ) throws IOException {
+    	String start = "https://en.wikipedia.org/wiki/Fenestrelle_Fort";
+//    	String start = "https://en.wikipedia.org/wiki/Phalonidia_hapalobursa";
 //    	String start = "https://en.wikipedia.org/wiki/Mystic_River_(film)";
 //    	String start = "https://en.wikipedia.org/wiki/76th_Academy_Awards";
 //    	String start = "https://en.wikipedia.org/wiki/Michael_Caine";
+//    	String start = "https://en.wikipedia.org/wiki/Hollywood_Walk_of_Fame";
 
     	String end = "/wiki/Kevin_Bacon";
-    	findPath(new Page(start, null), end);
-    }
-    
-    private static String findPath(Page page, String target) throws IOException {
-    	Queue<Page> q = new ConcurrentLinkedQueue<>();
-    	Set<String> visitedUrls = new HashSet<>();
-    	boolean loop = true;
-    	int count = 0;
-    	
-    	q.offer(page);
-    	while(q.peek() != null && loop) {
-    		System.out.println("Backlog size is " + q.size());
-    		Page current = q.poll();
-    		List<String> currentChildren = current.getChildUrls();
-    		System.out.println("Analyzing page " + current.getUrl() + " with " + currentChildren.size() + " children");
-    		for(String url : currentChildren) {
-    			if(target.equals(url)) {
-    				System.out.println("Success!");
-    				success(current, target);
-    				loop = false;
-    				break;
-    			} else if (visitedUrls.add(url)){
-    				q.offer(new Page("https://en.wikipedia.org" + url, current));
-    			}
-    		}
-    		System.out.println("Searched " + ++count + " pages");
-    	}	
-		return null;
+    	startTime = System.currentTimeMillis();
+    	executor.execute(new GameTask(new Page(start, null), visitedUrls, end));
     }
 
-	private static void success(Page winner, String target) {
-		System.out.println(winner.getHistory() + " --> " + target);
+	public  static void success(Page winner, String target) {
+		synchronized (qu) {
+			executor.shutdownNow();
+			System.out.println("Time elapsed is " + (System.currentTimeMillis() - startTime));
+			System.out.println(winner.getHistory() + " --> " + target);
+			System.out.println(executedTasks.get() + " tasks were started");
+			System.out.println(completedTasks.get() + " tasks were finished");
+			System.out.println(addedTasks.get() + " tasks were scheduled to run");
+		}
+	}
+	
+	public static void addTask(GameTask task) {
+		addedTasks.incrementAndGet();
+		try {
+			executor.execute(task);
+		} catch(RejectedExecutionException e) {
+		}
+	}
+	
+	public static void startTask() {
+		executedTasks.incrementAndGet();
+	}
+	
+	public static void completeTask() {
+		completedTasks.incrementAndGet();
 	}
 }
